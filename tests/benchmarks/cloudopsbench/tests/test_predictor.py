@@ -291,6 +291,98 @@ def test_user_prompt_includes_performance_localization_hint() -> None:
     assert "35691" in body
 
 
+def test_bridge_does_not_fire_on_realistic_investigation_text() -> None:
+    """Pins the bridge's STRICT contract on text matching the kind of phrasing
+    real investigations actually produce: pod-status terms ("ImagePullBackOff")
+    + a known service name + a tag mention. The existing rule for
+    ``incorrect_image_reference`` requires all of (``imagepullbackoff``,
+    ``image pull``, ``incorrect image``) verbatim — the literal phrase
+    ``incorrect image`` rarely appears in real LLM-generated investigation
+    output, so the bridge stays silent on this realistic case and the
+    predictor LLM still runs (no regression vs pre-bridge behavior).
+
+    This documents WHY the bridge-before-predictor wiring evaluated on
+    2026-06-07 was not shipped: offline replay against the 240 Fargate
+    Fix-A cells showed the bridge fires on 3/120 cells per arm with zero
+    net Δa1. See ``bench-results-openai/fix-a-loss-patterns.md``.
+    """
+    from tests.benchmarks.cloudopsbench.scoring import (
+        infer_final_answer_from_opensre_text,
+    )
+
+    case_data = {
+        "root_cause": "frontend deployment failing with ImagePullBackOff",
+        "report": "image pull failed for frontend; tag v0.10.999 not found in registry",
+        "final_state": {
+            "root_cause": "frontend deployment failing with ImagePullBackOff",
+            "report": "image pull failed for frontend; tag v0.10.999 not found in registry",
+        },
+    }
+    # No "incorrect image" → strict AND-of-3-tokens rule misses → bridge silent.
+    assert infer_final_answer_from_opensre_text(case_data) is None
+
+
+def test_bridge_fires_when_all_required_tokens_present() -> None:
+    """Pins the bridge's POSITIVE contract: when text DOES contain every token
+    the rule requires (here ``imagepullbackoff`` + ``image pull`` + ``incorrect
+    image``) AND a known service name, the bridge fires and emits the right
+    rank-1 triple. Contrived input — the prior test documents that real LLM
+    output rarely produces this exact phrase combination."""
+    from tests.benchmarks.cloudopsbench.scoring import (
+        infer_final_answer_from_opensre_text,
+    )
+
+    case_data = {
+        "root_cause": "frontend ImagePullBackOff — incorrect image reference",
+        "report": "image pull failed for frontend; incorrect image tag v0.10.999",
+        "final_state": {
+            "root_cause": "frontend ImagePullBackOff — incorrect image reference",
+            "report": "image pull failed for frontend; incorrect image tag v0.10.999",
+        },
+    }
+    payload = infer_final_answer_from_opensre_text(case_data)
+    assert payload is not None
+    rank1 = payload["top_3_predictions"][0]
+    assert rank1["root_cause"] == "incorrect_image_reference"
+    assert rank1["fault_object"] == "app/frontend"
+    assert rank1["fault_taxonomy"] == "Startup_Fault"
+
+
+def test_bridge_override_does_not_fire_without_known_service_name() -> None:
+    """Confidence gate: the bridge requires BOTH a recognized root_cause keyword
+    AND a known service/node/namespace name. Investigation text that only
+    mentions a generic concept (no entity to localize) must return None so the
+    predictor LLM still runs as fallback."""
+    from tests.benchmarks.cloudopsbench.scoring import (
+        infer_final_answer_from_opensre_text,
+    )
+
+    case_data = {
+        "root_cause": "ImagePullBackOff observed in the cluster",
+        "report": "Pods can't pull images",
+        "final_state": {
+            "root_cause": "ImagePullBackOff observed in the cluster",
+            "report": "Pods can't pull images",
+        },
+    }
+    payload = infer_final_answer_from_opensre_text(case_data)
+    assert payload is None
+
+
+def test_bridge_override_does_not_fire_on_empty_investigation() -> None:
+    """The llm_alone control arm passes an empty investigation summary; the
+    bridge must return None on empty input so llm_alone falls through to the
+    predictor LLM as today — preserves the matched contrast."""
+    from tests.benchmarks.cloudopsbench.scoring import (
+        infer_final_answer_from_opensre_text,
+    )
+
+    payload = infer_final_answer_from_opensre_text(
+        {"root_cause": "", "report": "", "final_state": {"root_cause": "", "report": ""}}
+    )
+    assert payload is None
+
+
 def test_user_prompt_without_summary_is_alert_only_and_unchanged() -> None:
     """The llm_alone control path (empty summary) must NOT get the authoritative
     framing — it has no investigation to anchor on. Keeps the controls valid."""
