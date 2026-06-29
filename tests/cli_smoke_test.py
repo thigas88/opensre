@@ -394,7 +394,12 @@ def _run_cli_pty(
 
 class _ReleaseHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        payload = json.dumps({"tag_name": "v9999.0.0"}).encode("utf-8")
+        payload = json.dumps(
+            {
+                "tag_name": "main-build",
+                "body": "- Version: `9999.0.0`\n- Commit: `deadbeef`\n",
+            }
+        ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
@@ -417,7 +422,7 @@ def release_api_url() -> str:
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}/releases/latest"
+        yield f"http://127.0.0.1:{server.server_port}/releases/tags/main-build"
     finally:
         server.shutdown()
         thread.join(timeout=5.0)
