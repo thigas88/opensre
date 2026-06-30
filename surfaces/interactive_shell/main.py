@@ -85,10 +85,25 @@ def run_repl(
 
     telegram_gateway = None
     if initial_input is None:
-        from gateway.background import try_start_telegram_gateway_background
+        from gateway.config.configure_gateway_logging import configure_gateway_logging
+        from gateway.config.get_gateway_settings import try_load_gateway_settings_for_startup
+        from gateway.polling.telegram_gateway_background import (
+            start_telegram_gateway_background,
+        )
+        from gateway.polling.telegram_polling_runtime import (
+            initialize_telegram_polling_runtime,
+            shutdown_telegram_polling_runtime,
+        )
 
-        telegram_gateway = try_start_telegram_gateway_background()
-        if telegram_gateway is not None:
+        gateway_logger = configure_gateway_logging(co_located=True)
+        gateway_settings = try_load_gateway_settings_for_startup(logger=gateway_logger)
+        if gateway_settings is not None:
+            telegram_gateway = start_telegram_gateway_background(
+                settings=gateway_settings,
+                logger=gateway_logger,
+                initialize_runtime=initialize_telegram_polling_runtime,
+                shutdown_runtime=shutdown_telegram_polling_runtime,
+            )
             _console.print(f"[{DIM}]Telegram gateway listening (poll mode)[/]")
 
     try:
