@@ -18,6 +18,7 @@ from typing import Any
 
 from rich.console import Console
 
+from core.agent_harness.action_agent import SELF_RECORDING_ACTION_TOOL_NAMES
 from surfaces.interactive_shell.runtime import ReplSession
 
 # Tools whose preview is just ``(label, single-arg)``. The display content is the
@@ -54,14 +55,18 @@ def tool_call_display(tool_name: str, args: dict[str, Any]) -> tuple[str, str]:
 
 
 class ActionRenderObserver:
-    """Agent event observer that records internal planner actions."""
+    """Agent event observer that records planner turns not owned by action tools.
+
+    Self-recording tools (``slash_invoke``, ``shell_run``, etc.) append their own
+    history row; chat turns are recorded later by turn accounting when the
+    assistant runs.
+    """
 
     def __init__(self, *, session: ReplSession, console: Console, message: str) -> None:
         self.session = session
         self.console = console
         self.message = message
         self.planned_count = 0
-        self._recorded_cli_agent = False
 
     def __call__(self, kind: str, data: dict[str, Any]) -> None:
         if kind == "tool_update":
@@ -78,9 +83,8 @@ class ActionRenderObserver:
         name = str(data.get("name", "")).strip()
         if not name or name == "assistant_handoff":
             return
-        if self.planned_count == 0:
+        if self.planned_count == 0 and name not in SELF_RECORDING_ACTION_TOOL_NAMES:
             self.session.record("cli_agent", self.message)
-            self._recorded_cli_agent = True
         self.planned_count += 1
 
 
