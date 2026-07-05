@@ -1,6 +1,6 @@
 """Investigation pipeline slice TypedDicts owned by orchestration stages.
 
-The pipeline still uses one flat runtime dict (:class:`~core.context.state.AgentState`).
+The pipeline still uses one flat runtime dict (:class:`~core.state.AgentState`).
 These TypedDicts document which fields belong together and which stages typically own them.
 
 Stage ownership (typical read/write):
@@ -19,11 +19,11 @@ from typing import Any
 
 from typing_extensions import TypedDict
 
-from core.context.state.types import AgentMode
 from core.domain.types.retrieval import RetrievalControlsMap
+from core.state.types import AgentMode
 
 
-class SessionContext(TypedDict, total=False):
+class CallerMetadataSlice(TypedDict, total=False):
     """Mode, auth, and run identifiers injected by callers."""
 
     mode: AgentMode
@@ -141,5 +141,5 @@ __all__ = [
     "InvestigationPlanSlice",
     "InvestigationRuntimeSlice",
     "MaskingSlice",
-    "SessionContext",
+    "CallerMetadataSlice",
 ]

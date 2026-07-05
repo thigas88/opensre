@@ -1,7 +1,8 @@
 """Shared mutable agent state and immutable turn-request snapshots.
 
-Production uses ``messages``, ``last_observation``, and ``clear()`` on
-``session.agent`` only. Other APIs exist for tests and future wiring.
+The per-session mutable store is reached through ``session.agent``
+(``messages``, ``last_observation``, ``clear()``, and related accessors); the
+snapshot models are read-only views used to assemble runtime requests.
 """
 
 from __future__ import annotations
@@ -33,8 +34,8 @@ class AgentModelInfo:
 
 
 @dataclass(frozen=True)
-class AgentContextInput:
-    """Selector output used to construct a runtime ``AgentContext``."""
+class TurnRuntimeInput:
+    """Selector output used to build a per-turn runtime request (``TurnSnapshot``)."""
 
     text: str
     messages: tuple[tuple[str, str], ...]
@@ -48,7 +49,7 @@ class AgentContextInput:
 
 
 @dataclass(frozen=True)
-class AgentStateSnapshot:
+class SessionAgentSnapshot:
     """Immutable state read model returned to consumers."""
 
     system_prompt: str
@@ -68,8 +69,8 @@ class AgentStateChange:
     """Post-commit change notification for subscribers."""
 
     action: str
-    previous: AgentStateSnapshot
-    current: AgentStateSnapshot
+    previous: SessionAgentSnapshot
+    current: SessionAgentSnapshot
 
 
 Subscriber = Callable[[AgentStateChange], None]
@@ -182,8 +183,8 @@ class MutableAgentState:
 
         return _unsubscribe
 
-    def snapshot(self) -> AgentStateSnapshot:
-        return AgentStateSnapshot(
+    def snapshot(self) -> SessionAgentSnapshot:
+        return SessionAgentSnapshot(
             system_prompt=self._system_prompt,
             model=self._model,
             available_tools=self._available_tools,
@@ -199,8 +200,8 @@ class MutableAgentState:
     def select_messages(self) -> tuple[tuple[str, str], ...]:
         return tuple(self._messages)
 
-    def select_agent_context_input(self, text: str) -> AgentContextInput:
-        return AgentContextInput(
+    def select_turn_runtime_input(self, text: str) -> TurnRuntimeInput:
+        return TurnRuntimeInput(
             text=text,
             messages=tuple(self._messages[-MAX_CONVERSATION_MESSAGES:]),
             system_prompt=self._system_prompt,
@@ -347,13 +348,13 @@ def create_mutable_agent_state(**kwargs: Any) -> MutableAgentState:
 
 
 __all__ = [
-    "AgentContextInput",
+    "TurnRuntimeInput",
     "AgentMessageRole",
     "AgentModelInfo",
     "AgentRunStatus",
     "AgentStateChange",
     "AgentStateError",
-    "AgentStateSnapshot",
+    "SessionAgentSnapshot",
     "MAX_CONVERSATION_MESSAGES",
     "MAX_CONVERSATION_TURNS",
     "MutableAgentState",

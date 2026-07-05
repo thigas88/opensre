@@ -1,34 +1,35 @@
-"""Shared agent state for runtime request assembly.
+"""Shared agent state: investigation pipeline state and the per-session store.
 
-Owns the mutable per-session store and immutable read models used to assemble
-runtime requests without exposing live mutable internals.
+Holds the immutable investigation state (``AgentState`` and its slices) and the
+mutable per-session agent store reached through ``session.agent``.
 """
 
 from __future__ import annotations
 
-from core.context.state.agent_state import (
+from core.state.agent_state import (
     MAX_CONVERSATION_MESSAGES,
     MAX_CONVERSATION_TURNS,
-    AgentContextInput,
     AgentMessageRole,
     AgentModelInfo,
     AgentRunStatus,
     AgentStateChange,
     AgentStateError,
-    AgentStateSnapshot,
     MutableAgentState,
+    SessionAgentSnapshot,
+    TurnRuntimeInput,
     create_mutable_agent_state,
 )
-from core.context.state.evidence import EvidenceEntry
-from core.context.state.models import (
+from core.state.evidence import EvidenceEntry
+from core.state.models import (
     AgentState,
     AgentStateModel,
     InvestigationState,
     make_chat_state,
     model_default_payload,
 )
-from core.context.state.runtime_slices import (
+from core.state.runtime_slices import (
     AlertInputSlice,
+    CallerMetadataSlice,
     DeliveryContextSlice,
     DeliveryOutputSlice,
     DiagnosisSlice,
@@ -36,20 +37,19 @@ from core.context.state.runtime_slices import (
     InvestigationPlanSlice,
     InvestigationRuntimeSlice,
     MaskingSlice,
-    SessionContext,
 )
-from core.context.state.slices import ChatStateSlice
-from core.context.state.types import AgentMode, ChatMessage, ChatMessageModel
-from core.context.state.updates import apply_state_updates
+from core.state.slices import ChatStateSlice
+from core.state.types import AgentMode, ChatMessage, ChatMessageModel
+from core.state.updates import apply_state_updates
 
 __all__ = [
-    "AgentContextInput",
+    "TurnRuntimeInput",
     "AgentMessageRole",
     "AgentModelInfo",
     "AgentRunStatus",
     "AgentStateChange",
     "AgentStateError",
-    "AgentStateSnapshot",
+    "SessionAgentSnapshot",
     "MAX_CONVERSATION_MESSAGES",
     "MAX_CONVERSATION_TURNS",
     "MutableAgentState",
@@ -70,7 +70,7 @@ __all__ = [
     "InvestigationRuntimeSlice",
     "InvestigationState",
     "MaskingSlice",
-    "SessionContext",
+    "CallerMetadataSlice",
     "apply_state_updates",
     "make_chat_state",
     "model_default_payload",
