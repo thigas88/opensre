@@ -133,3 +133,29 @@ def test_finalize_falls_back_to_plain_when_html_rejected() -> None:
     assert first.kwargs.get("parse_mode") == "HTML"
     assert second.kwargs.get("parse_mode", "") == ""
     assert second.args[2] == "**bold**"
+
+
+def test_render_error_appends_auth_login_hint_on_credit_exhaustion() -> None:
+    from core.llm.shared.llm_retry import CREDIT_EXHAUSTED_MARKER
+
+    client = MagicMock(spec=TelegramBotClient)
+    client.send_message.return_value = (True, "", "1")
+    client.edit_message_text.return_value = (True, "")
+    sink = GatewayOutputSink(client=client, chat_id="123", edit_interval_seconds=0.0)
+
+    sink.render_error(f"Anthropic {CREDIT_EXHAUSTED_MARKER}. Original error: 400")
+
+    finalized = client.edit_message_text.call_args[0][2]
+    assert "opensre auth login" in finalized
+
+
+def test_render_error_no_auth_hint_for_generic_error() -> None:
+    client = MagicMock(spec=TelegramBotClient)
+    client.send_message.return_value = (True, "", "1")
+    client.edit_message_text.return_value = (True, "")
+    sink = GatewayOutputSink(client=client, chat_id="123", edit_interval_seconds=0.0)
+
+    sink.render_error("something else broke")
+
+    finalized = client.edit_message_text.call_args[0][2]
+    assert "opensre auth login" not in finalized
